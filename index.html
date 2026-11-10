@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hazard Monitor Setup</title>
+<meta name="description" content="Center your BenchLabs Hazard Monitor on where you actually live.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500&family=Barlow+Semi+Condensed:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Night operations: cold slate, not neutral black. The device uses
+       the same cast, so the page and the screen read as one object. */
+    --field:#0b1015;
+    --raised:#141b24;
+    --rule:#1e2733;
+
+    /* Caution amber carries YOU and ACTION. Nothing else may use it. */
+    --amber:#f5a623;
+    --amber-deep:#8a5c12;
+
+    /* Warning red is reserved for genuinely destructive controls. */
+    --red:#c0392b;
+
+    /* Land reads cool and receding; it is reference, not content. */
+    --land:#8fa4bb;
+    --paper:#e6ebf2;
+    --paper-soft:#93a3b5;
+    --ok:#4fb87a;
+
+    --f-cond:"Barlow Semi Condensed",system-ui,sans-serif;
+    --f-text:"Barlow",system-ui,sans-serif;
+    --f-data:"JetBrains Mono",ui-monospace,monospace;
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--field);
+    color:var(--paper);
+    font-family:var(--f-text);
+    font-size:16px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:470px;margin:0 auto;padding:0 16px 72px}
+
+  /* ---------- Map ---------- */
+
+  .map{
+    position:relative;
+    margin:26px auto 0;
+    width:100%;
+    max-width:420px;
+  }
+  .map svg{width:100%;height:auto;display:block}
+  .coast{fill:none;stroke:var(--land);stroke-width:1.4;
+         stroke-linejoin:round;stroke-linecap:round}
+  .states{fill:none;stroke:#39465a;stroke-width:1;stroke-dasharray:2 3}
+
+  #pin{opacity:0;transition:opacity .3s ease}
+  #pin.on{opacity:1}
+  /* The ring breathes only when a position is set — it marks the one
+     thing on this page that is you. Stilled for reduced-motion. */
+  #pin-ring{transform-box:fill-box;transform-origin:center;
+            animation:pulse 2.6s ease-in-out infinite}
+  @keyframes pulse{
+    0%,100%{transform:scale(1);opacity:.85}
+    50%{transform:scale(1.5);opacity:.25}
+  }
+
+  .readout{
+    margin-top:10px;text-align:center;
+    font-family:var(--f-data);font-size:13px;
+    color:var(--amber);min-height:1.4em;
+  }
+  .readout[data-empty="true"]{color:#5b6978}
+  .map-note{
+    text-align:center;font-family:var(--f-cond);
+    font-size:13px;color:#5b6978;margin-top:1px;
+  }
+
+  /* ---------- Masthead ---------- */
+
+  .mast{margin:36px 0 0}
+  .mast h1{
+    font-family:var(--f-cond);font-weight:600;
+    font-size:clamp(29px,8vw,38px);line-height:1.05;
+    letter-spacing:-.012em;margin:0 0 14px;
+  }
+  .mast p{margin:0 0 12px;max-width:46ch;color:var(--paper-soft)}
+  .mast p.lead{color:var(--paper)}
+
+  /* ---------- Steps ---------- */
+
+  .step{
+    display:grid;grid-template-columns:4px 1fr;gap:0 16px;
+    margin-top:30px;padding-top:22px;border-top:1px solid var(--rule);
+  }
+  .step-mark{background:#243040;border-radius:1px;transition:background .22s ease}
+  .step[data-done="true"] .step-mark{background:var(--ok)}
+  .step h2{
+    font-family:var(--f-cond);font-weight:600;font-size:19px;
+    margin:0 0 4px;
+  }
+  .step .hint{font-size:14px;color:var(--paper-soft);margin:0 0 14px;max-width:44ch}
+
+  /* ---------- Controls ---------- */
+
+  label.fld{
+    display:block;font-family:var(--f-cond);font-size:14px;
+    color:var(--paper-soft);margin-bottom:5px;
+  }
+  input[type=text]{
+    width:100%;padding:13px 14px;background:var(--raised);
+    border:1px solid var(--rule);border-radius:3px;color:var(--amber);
+    font-family:var(--f-data);font-size:16px;
+  }
+  input[type=text]::placeholder{color:#44525f}
+  input[type=text]:focus{outline:2px solid var(--amber-deep);outline-offset:1px;
+                         border-color:transparent}
+  input[type=text][aria-invalid="true"]{border-color:var(--red)}
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+  button{
+    font-family:var(--f-cond);font-size:17px;font-weight:600;
+    border-radius:3px;border:1px solid transparent;cursor:pointer;
+  }
+  button:focus-visible{outline:2px solid var(--paper);outline-offset:2px}
+
+  .btn-locate{width:100%;padding:15px;background:var(--amber);color:#231603}
+  .btn-locate:hover{background:#ffb944}
+  .btn-locate:disabled{background:var(--amber-deep);color:#d8c3a0;cursor:default}
+
+  .zip-row{display:grid;grid-template-columns:1fr auto;gap:10px}
+  .btn-zip{padding:13px 20px;background:var(--raised);
+           border-color:var(--rule);color:var(--paper)}
+  .btn-zip:hover{background:#1b2531}
+
+  /* Green, not amber. Amber is "you and your position"; this button is
+     the handoff to the device, and green is the device saying OK.
+     Two amber buttons competed for the same attention. */
+  .btn-send{width:100%;padding:17px;background:#2f7d57;color:#fff;font-size:18px}
+  .btn-send:hover{background:#39936a}
+  .btn-send:disabled{background:transparent;border-color:var(--rule);
+                     color:#4a5868;cursor:default}
+
+  .btn-fix{margin-top:10px;padding:9px 14px;background:transparent;
+           border-color:var(--amber);color:var(--amber);font-size:15px}
+  .btn-fix:hover{background:rgba(245,166,35,.12)}
+
+  .or{display:flex;align-items:center;gap:12px;margin:16px 0;
+      font-family:var(--f-cond);font-size:13px;color:#4a5868}
+  .or::before,.or::after{content:"";height:1px;background:var(--rule);flex:1}
+
+  .opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .opts button{
+    padding:13px 6px;background:var(--raised);border-color:var(--rule);
+    color:var(--paper-soft);font-family:var(--f-data);font-size:13px;
+    font-weight:400;white-space:nowrap;
+  }
+  .opts button[aria-pressed="true"]{
+    background:rgba(79,184,122,.1);border-color:#2f7d57;color:var(--ok);
+  }
+  .opt-label{font-family:var(--f-cond);font-size:14px;color:var(--paper-soft);
+             margin:16px 0 6px}
+
+  /* ---------- Messages ---------- */
+
+  .msg{
+    display:flex;gap:9px;font-size:14px;line-height:1.45;margin-top:12px;
+    padding:11px 13px;border-radius:3px;border-left:2px solid;
+  }
+  .msg b{font-weight:500}
+  .msg.caution{border-color:var(--amber);background:rgba(245,166,35,.07);color:#f0dcb6}
+  .msg.ok{border-color:var(--ok);background:rgba(79,184,122,.07);color:#bfe3cd}
+  .msg[hidden]{display:none}
+
+  details.where{margin-top:12px}
+  details.where summary{font-family:var(--f-cond);font-size:14px;
+                        color:var(--amber);cursor:pointer}
+  details.where summary:focus-visible{outline:2px solid var(--paper);outline-offset:3px}
+  details.where ol,details.where p{margin:10px 0 0;font-size:14px;color:var(--paper-soft)}
+  details.where ol{padding-left:20px}
+  details.where li{margin-bottom:5px}
+  details.where code{font-family:var(--f-data);font-size:13px;color:var(--amber)}
+
+  .send-zone{margin-top:34px;padding-top:26px;border-top:1px solid var(--rule)}
+  .fallback{margin-top:14px;font-size:13px;color:var(--paper-soft)}
+  .fallback .url{
+    display:block;margin-top:7px;padding:10px 12px;background:var(--raised);
+    border:1px solid var(--rule);border-radius:3px;font-family:var(--f-data);
+    font-size:12px;color:var(--amber);word-break:break-all;
+  }
+
+  .danger{margin-top:40px;padding-top:24px;border-top:1px solid var(--rule)}
+  .danger h2{font-family:var(--f-cond);font-weight:600;font-size:17px;
+             color:var(--paper-soft);margin:0 0 8px}
+  .danger p{font-size:14px;color:var(--paper-soft);margin:0 0 10px;max-width:44ch}
+  .danger a{color:var(--red)}
+  .danger[hidden]{display:none}
+
+  /* ---------- Safety notice ---------- */
+  /* This product tells people about danger. The one thing it must never
+     do is imply it replaces the official channel. Stated plainly, given
+     real weight, and placed where it will actually be read. */
+  .safety{
+    margin-top:36px;padding:14px 16px;border:1px solid #3a2a12;
+    background:rgba(245,166,35,.05);border-radius:3px;
+  }
+  .safety h2{font-family:var(--f-cond);font-size:16px;font-weight:600;
+             color:var(--amber);margin:0 0 7px}
+  .safety p{margin:0;font-size:14px;color:#c9b795;line-height:1.5}
+
+  footer{
+    margin-top:40px;padding-top:24px;border-top:1px solid var(--rule);
+    font-size:13px;line-height:1.6;color:#66737f;
+  }
+  footer a{color:#7f8c99}
+  footer a:hover{color:var(--paper-soft)}
+  footer p{margin:0 0 11px}
+  footer .credit{font-size:12px;color:#525d69}
+
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none!important;animation:none!important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Same geometry, same projection, same source as the device draws.
+       The pin lands where the monitor will put your crosshair. -->
+  <div class="map">
+    <svg viewBox="0 0 600 380" role="img"
+         aria-label="Map of the continental United States showing your configured location">
+      <path class="states" d="M80.9,252.2L84.3,251.0L82.5,243.8L85.6,240.7L86.5,235.3L92.2,231.4L88.1,221.5L90.2,203.8L96.9,206.1L100.7,192.3L157.4,201.6L146.0,283.6M428.8,234.7L437.2,264.8L441.8,273.2L439.5,279.7L444.1,295.1L477.7,293.4L478.7,296.3L480.3,295.9L480.4,289.2L486.9,289.9M401.4,304.9L398.7,282.8L398.3,237.3L458.0,230.9L455.9,235.8L461.7,238.1L466.6,245.2L481.3,256.9L487.8,269.1L490.7,269.8M404.9,137.4L426.5,135.1L431.7,177.1L424.5,180.3L425.2,182.7L419.0,191.9L415.0,188.9L412.6,194.3L409.9,192.4L407.1,195.7L401.5,193.4L401.3,195.6L398.2,194.4L397.9,196.7L396.0,194.9L396.8,189.8L401.7,182.1L399.5,176.0L397.5,138.9M240.0,165.8L318.4,169.5L316.5,174.7L322.3,180.2L322.4,211.8L237.3,209.8M570.0,88.0L565.9,84.2L557.7,57.4M569.8,108.4L567.0,104.5L544.7,109.1L545.0,99.1L565.4,94.7L569.6,90.9M346.3,69.4L343.6,70.2L343.9,78.7L338.3,84.0L340.7,88.0L339.4,97.8L353.9,108.4L356.6,115.5L301.8,116.8L301.9,90.6L297.8,86.1L300.9,79.6L294.7,37.2M531.4,148.2L538.4,139.6L531.5,133.1L534.2,122.7L544.3,125.6L543.8,130.3M443.8,232.9L443.8,229.4L447.9,224.6L457.7,219.5L461.3,214.6L462.4,216.1L468.1,212.7L471.4,209.1L471.2,205.5L537.2,193.9M514.2,238.8L498.4,227.5L485.3,229.4L481.7,225.1L465.9,226.6L458.0,230.9M300.8,81.4L225.4,77.8L229.1,34.0M322.4,211.8L324.9,235.2L324.3,261.2L315.8,256.3L302.2,260.3L295.5,256.3L293.1,259.8L292.1,256.9L289.3,258.2L286.4,255.8L284.1,257.7L281.4,253.2L276.9,254.5L268.6,252.0L266.4,248.4L262.5,249.2L259.2,246.6L260.4,218.2L225.7,216.2L226.3,208.9M478.8,120.0L479.5,123.9L525.7,114.8L534.7,122.4M532.0,146.3L476.9,158.1L471.5,125.5M301.8,116.8L300.2,117.5L302.0,122.3L299.9,127.4L301.2,131.6L293.7,126.3L285.2,127.3L280.2,123.8L221.7,120.5L225.4,77.8M324.7,260.9L330.0,262.1L330.5,284.8L337.1,296.4L335.4,312.8L332.6,316.7L333.8,318.2M177.6,281.0L176.8,277.7L220.1,281.7L225.7,216.2M221.7,120.5L219.2,149.6M165.3,143.6L240.9,151.2L237.3,209.8L157.4,201.6L165.3,143.6L143.9,140.4L153.0,82.8L224.1,91.5M562.7,105.8L564.6,115.7M546.9,125.1L545.8,123.7L548.0,121.5L545.1,109.6M314.2,167.9L309.1,159.4L353.1,157.9L356.7,161.2L357.7,170.6L365.3,177.5L366.2,182.0L372.4,182.7L370.2,192.2L380.2,199.2L382.4,208.6L385.7,209.5L384.8,215.2L382.9,214.8L382.2,217.1L380.8,215.6L379.3,224.1L371.9,224.6L375.1,220.4L374.1,217.1L322.5,219.1M488.3,156.2L489.5,163.6L496.1,156.2L499.8,157.1L502.4,154.0L506.5,154.6L508.5,158.4L507.8,161.3L501.3,157.6L501.4,162.0L497.4,168.8L495.8,167.8L493.4,174.7L489.2,172.8L484.6,189.7L474.9,195.3L467.6,195.6L457.0,184.6L456.9,180.4L459.9,179.6L461.9,170.7L464.9,171.8L465.2,166.6L473.2,160.2L474.7,144.9M356.7,161.2L361.2,153.0L360.0,145.8L366.2,143.9L369.0,139.6L368.9,135.1L363.4,129.7L393.6,127.8M396.9,196.4L396.7,201.2L392.3,202.8L392.9,207.4L386.7,205.6L385.3,209.3M379.3,224.1L377.6,231.4L374.8,232.9L376.3,236.9L371.7,240.9L371.0,247.7L365.3,254.5L366.0,259.0L363.8,258.8L366.2,264.9L365.0,268.8L330.2,269.8M9.0,94.2L52.4,106.5L41.5,148.9L88.5,219.7M540.3,164.7L533.2,166.2L528.3,148.3M356.6,115.5L358.9,126.5L363.4,129.7M309.1,159.4L307.3,146.5L301.8,131.5M430.9,173.7L435.0,173.1L438.1,177.3L444.6,179.1L452.9,176.0L456.9,180.4M465.8,192.2L454.2,205.6L448.2,208.8L397.8,212.8L398.2,215.4L382.5,216.6M516.2,162.7L518.6,162.8L517.4,164.5L508.5,158.4M441.0,133.7L426.6,136.1M442.5,291.6L410.6,295.0L414.2,302.8L412.5,305.3M392.4,89.8L391.4,85.9L389.2,85.9L389.8,81.6L386.3,78.3L365.5,73.8L362.4,70.6M373.6,239.2L398.3,237.4M387.5,308.7L383.0,302.0L383.9,296.9L360.6,298.3L361.9,288.8L366.6,283.5L367.6,281.1L365.6,280.5L369.0,278.1L366.0,276.5L367.5,276.2L365.0,268.8M151.9,90.3L149.1,85.8L147.7,88.7L139.5,86.9L133.3,88.9L131.4,82.4L128.4,80.5L126.9,69.4L125.3,67.6L121.1,70.4L119.3,68.5L124.6,53.3L120.4,52.0L116.6,42.9L112.9,39.7L114.0,35.9L111.7,31.3L114.8,16.9M553.3,97.4L551.1,85.2L551.9,73.8L555.8,70.0L554.7,62.6M536.4,67.3L540.4,87.6L542.4,87.7L545.0,99.1M33.5,36.9L39.1,41.2L38.7,47.5L43.1,50.4L48.2,49.4L53.9,52.5L61.9,53.2L76.9,52.6L97.2,57.4L100.1,61.9L88.8,79.3L91.5,83.6L83.3,113.9L52.4,106.5M448.3,208.5L471.2,205.5M100.7,192.3L114.6,120.5L146.2,125.9M105.6,14.9L97.2,57.4M114.6,120.5L83.3,113.9"/>
+      <path class="coast" d="M402.4,306.8L405.6,306.3L402.4,306.8M495.6,378.2L499.9,374.0L502.9,375.6L495.6,378.2M485.2,348.9L486.7,351.5L488.9,351.9L486.5,351.7L485.2,348.9M581.2,111.4L583.7,109.8L584.7,111.3L581.2,111.4M575.2,112.4L577.1,109.9L579.0,110.3L579.2,111.3L575.2,112.4M540.1,215.5L544.9,211.4L543.6,204.2L545.2,211.9L540.1,215.5M37.5,231.2L40.0,232.9L40.2,234.6L37.5,231.2M36.0,237.6L38.2,241.3L36.7,240.6L36.0,237.6M24.4,218.9L28.8,220.7L26.2,221.2L24.4,218.9M421.0,75.6L424.1,76.6L422.8,77.2L421.0,75.6M372.6,51.0L380.4,45.9L375.1,50.4L376.0,50.6L372.6,51.0M48.9,11.8L51.2,9.7L51.7,11.6L49.4,11.8L50.3,15.4L50.7,14.3L51.9,15.5L51.3,17.3L48.9,11.8M46.4,5.5L48.3,6.6L49.5,4.7L50.9,5.9L48.7,8.9L46.4,5.5M395.7,309.9L396.3,314.2L395.7,309.9M356.8,318.9L360.6,319.3L359.3,320.5L356.8,318.9M564.6,115.7L553.7,118.8L545.8,127.5L557.7,122.5L560.8,119.1L560.4,120.0L563.3,121.0L565.6,119.2L554.4,128.1L545.4,132.1L543.8,130.3L542.2,133.5L545.3,133.6L546.4,143.7L540.8,157.3L539.6,157.6L539.8,154.2L536.6,154.3L531.8,151.5L531.4,148.2L530.5,149.4L534.5,156.8L538.9,160.2L540.4,165.3L534.7,186.4L533.1,183.3L535.1,173.4L532.7,174.4L532.8,171.2L531.3,171.4L531.7,168.0L530.8,169.9L530.1,168.1L529.9,170.4L527.4,169.4L526.3,165.4L529.2,165.5L526.2,163.5L525.4,164.5L526.2,160.7L524.5,162.2L524.8,159.5L526.4,159.6L524.7,157.7L525.2,155.0L527.0,153.9L526.8,151.1L524.7,154.6L524.1,153.3L524.2,155.5L523.1,154.4L522.8,157.4L521.1,156.7L523.9,159.9L522.8,163.8L527.6,173.7L525.9,172.2L525.7,173.1L521.7,171.9L521.1,170.4L521.2,171.8L520.2,171.4L518.7,169.4L516.3,170.9L517.1,167.0L515.6,167.2L516.3,171.6L518.5,170.1L519.9,172.6L524.0,172.8L529.0,175.6L528.4,179.9L521.3,176.0L526.4,180.3L529.3,180.5L530.3,184.0L528.5,183.0L529.6,184.7L528.0,185.4L530.6,186.7L530.9,188.5L529.6,189.3L526.3,186.2L523.0,186.7L526.0,186.6L529.2,190.4L534.6,188.9L543.4,204.0L535.8,194.6L539.4,200.6L537.5,198.4L537.9,199.5L534.4,198.3L536.2,200.1L533.9,200.1L534.6,201.3L531.6,200.6L533.7,201.4L530.8,203.4L529.5,203.1L528.6,199.8L529.9,204.7L536.7,202.4L537.9,207.0L538.1,202.6L539.7,202.2L541.6,206.8L537.8,212.1L533.7,212.3L532.1,210.6L533.5,209.7L531.6,210.7L532.6,212.3L527.1,211.5L534.2,213.8L531.3,218.9L529.1,218.7L531.9,219.4L534.7,216.6L535.9,217.8L537.0,217.0L535.3,222.3L533.9,221.0L533.5,222.3L535.4,222.7L539.8,215.7L535.5,223.6L533.5,222.5L529.5,223.8L524.1,228.5L521.6,232.8L520.9,237.5L515.8,237.8L511.2,241.0L506.6,252.7L504.0,253.2L504.3,254.6L500.5,257.1L501.2,258.4L500.0,259.8L494.6,262.3L495.2,264.7L491.7,265.6L492.9,266.7L487.6,274.9L488.6,276.2L487.3,277.5L488.4,277.8L487.7,282.5L485.7,286.1L486.8,286.0L487.3,292.9L493.0,305.9L503.5,320.3L503.8,325.6L513.7,342.9L514.9,357.7L513.1,360.2L513.0,365.1L515.0,361.8L513.4,367.0L510.1,371.2L512.2,366.6L503.1,368.5L502.8,365.4L500.0,361.3L495.2,359.0L494.4,359.8L490.9,352.7L488.2,350.6L487.7,351.6L486.3,349.0L487.5,349.0L487.1,344.8L485.1,348.6L477.3,337.7L479.4,336.4L480.8,332.0L479.1,333.0L478.9,331.3L477.0,330.7L478.7,333.5L477.3,336.7L475.3,333.3L474.5,328.3L475.8,330.4L476.4,324.7L475.2,318.1L473.3,314.8L470.2,315.5L461.5,305.6L456.2,303.1L453.2,303.6L452.6,306.5L443.2,310.4L444.8,311.5L448.5,309.0L444.4,312.1L440.4,311.5L439.3,308.9L440.5,311.0L440.8,309.3L439.0,307.4L427.5,302.6L421.9,302.7L406.5,306.6L409.5,305.4L405.9,299.9L404.7,305.3L395.2,305.0L390.3,306.7L390.0,305.7L388.5,308.5L383.6,311.5L386.2,313.4L388.2,310.1L389.6,310.4L389.8,312.4L391.6,311.4L389.2,316.2L388.0,315.2L388.6,316.8L386.1,316.9L388.6,320.2L392.5,320.4L395.2,322.7L393.6,325.5L392.1,324.3L390.1,326.7L391.6,322.9L390.3,323.8L384.4,321.4L379.8,325.1L376.9,321.5L375.1,322.1L375.4,323.2L371.6,326.0L370.4,324.2L365.6,322.8L366.4,321.8L368.3,323.3L367.0,320.8L365.5,321.4L365.1,319.7L363.9,320.4L361.4,318.1L361.6,316.6L358.7,317.2L359.0,315.4L354.4,316.7L356.7,318.6L353.9,319.8L338.3,317.0L330.1,318.9L322.6,323.1L325.6,320.8L322.1,320.5L322.2,317.1L319.9,318.4L318.9,320.4L320.6,324.0L317.1,326.9L322.6,323.6L314.4,330.5L297.3,340.6L290.9,348.8L288.6,356.5L291.3,370.6L289.8,363.9L288.7,363.7L288.9,352.3L292.6,344.2L301.2,337.2L297.8,338.4L296.7,337.0L294.6,341.2L291.8,341.0L291.0,341.8L293.4,342.3L291.3,345.4L287.0,345.0L290.4,347.3L288.3,352.7L285.3,353.4L288.1,353.5L287.7,362.9L289.8,370.5L291.4,370.9L291.5,372.4L288.8,372.8L288.5,374.0L284.9,371.4L277.7,370.7L269.9,366.1L266.2,365.5L261.7,356.3L261.2,348.5L256.6,344.9L256.0,342.3L251.6,337.7L247.3,325.7L240.3,319.2L238.5,315.6L226.8,313.4L226.3,314.7L222.7,314.8L219.4,322.4L216.3,325.4L212.4,324.3L199.5,314.5L195.6,300.1L181.0,286.0L178.5,281.3L157.1,278.5L156.3,285.0L121.2,280.0L79.2,255.2L80.9,252.2L51.8,248.7L49.9,236.3L44.4,229.1L40.7,228.0L40.2,223.5L37.0,223.3L33.6,220.9L29.8,215.2L19.4,212.0L18.0,210.1L20.0,202.0L17.8,200.1L18.2,196.6L15.1,192.6L10.5,181.7L10.6,177.4L12.8,176.4L13.2,172.7L10.6,171.6L8.3,167.3L9.4,158.7L10.7,158.6L10.4,161.9L13.3,164.7L11.1,156.4L13.1,154.8L11.0,154.1L10.7,157.6L9.4,158.1L6.4,154.1L5.0,154.0L6.4,150.7L1.1,138.3L3.6,125.7L0.0,118.0L0.3,115.4L5.2,109.5L8.2,102.5L9.2,81.4L17.8,67.7L25.4,49.3L29.1,35.9L30.2,37.4L33.5,36.9L28.5,35.2L30.1,30.2L30.1,34.0L31.1,30.5L32.7,29.7L30.3,28.6L30.6,26.2L33.4,26.4L31.3,24.4L30.3,25.8L31.3,4.4L37.4,9.3L45.3,11.5L47.0,14.7L48.7,13.0L49.1,16.9L46.2,19.0L46.9,17.5L41.8,22.8L44.3,23.0L42.3,22.4L49.3,17.5L49.3,16.2L50.0,16.9L47.3,25.5L46.5,26.2L45.8,24.3L45.1,27.2L45.0,23.6L44.2,24.8L45.3,27.6L47.5,25.0L49.6,25.2L49.9,20.6L53.0,16.8L52.4,12.8L52.0,15.2L51.0,13.8L52.7,11.4L50.4,8.7L52.7,9.2L53.6,7.6L53.3,4.9L51.9,5.1L52.1,1.2L122.7,18.6L196.6,30.6L246.7,35.3L297.6,37.2L314.7,37.2L314.7,31.7L316.5,31.9L319.7,40.9L327.5,42.4L328.0,43.9L335.8,42.2L339.2,43.2L338.5,44.4L340.5,44.5L342.0,47.8L342.9,45.8L344.9,45.6L349.9,50.0L356.4,46.7L357.7,48.8L370.2,49.2L357.1,56.6L345.5,68.3L347.1,69.8L357.5,65.2L358.8,66.2L357.0,70.5L359.1,69.0L362.4,70.6L376.5,63.3L381.7,57.5L385.6,55.8L388.3,56.7L385.9,57.1L383.4,60.0L381.3,66.6L384.6,63.3L383.3,65.3L387.9,64.1L393.0,69.3L396.3,68.5L398.5,69.7L404.9,65.6L414.3,63.3L416.5,62.9L416.2,67.1L420.2,66.7L420.6,67.6L425.1,65.4L425.7,69.6L424.5,70.6L428.6,72.8L429.6,72.3L428.9,71.1L431.3,71.0L432.3,73.2L423.7,74.3L420.7,72.9L420.1,76.1L417.1,73.9L412.0,73.3L410.4,75.4L404.6,76.3L401.7,81.5L400.5,80.7L402.0,77.3L399.6,78.1L398.0,80.9L397.3,78.5L392.2,91.5L390.1,92.4L388.9,95.6L389.3,98.3L392.6,93.5L394.9,92.9L395.9,88.4L398.4,86.4L394.4,97.5L391.5,117.0L393.6,123.5L393.4,130.5L397.5,138.9L399.8,139.9L406.0,136.5L409.7,128.2L409.9,120.8L405.3,110.2L406.1,107.6L404.9,103.9L407.0,99.3L406.6,94.3L408.3,93.4L408.5,90.9L410.8,90.1L413.1,86.1L412.6,91.4L413.2,92.5L414.2,89.1L414.0,92.7L414.8,85.0L419.1,82.7L416.8,80.3L418.4,78.2L417.5,77.5L419.9,76.8L425.8,78.4L427.0,80.0L434.9,82.5L436.5,85.9L434.6,86.0L437.1,90.4L437.2,95.8L435.2,97.5L435.2,100.3L432.3,102.1L431.9,105.2L435.0,107.2L437.2,102.0L442.0,99.2L445.3,101.9L449.4,114.3L449.0,119.7L447.5,121.2L447.9,119.0L446.1,119.4L441.0,133.7L446.9,136.1L447.8,134.9L452.0,137.4L456.8,134.7L459.7,134.7L463.9,130.0L473.2,124.5L484.5,114.8L487.0,110.9L483.5,104.5L490.4,101.5L499.5,101.9L505.3,100.2L512.0,94.9L510.4,90.7L511.9,89.5L509.0,88.1L509.1,85.6L520.2,71.5L554.7,62.6L554.4,59.4L555.7,58.0L557.5,58.4L558.3,56.7L560.2,57.9L560.2,54.9L561.8,55.2L560.9,52.0L563.5,47.0L562.1,43.0L563.4,39.2L562.9,35.1L567.3,22.4L569.1,22.4L569.8,24.7L571.5,25.4L576.2,21.3L578.0,21.3L582.5,23.8L588.3,43.0L592.0,43.0L593.0,47.6L595.1,49.3L596.8,48.3L600.0,52.6L598.1,56.3L596.4,55.7L595.6,59.5L593.4,58.6L591.6,62.5L590.0,62.1L590.5,64.2L588.4,64.6L588.2,62.5L586.9,62.3L587.4,68.6L585.6,65.3L583.9,65.1L583.7,62.4L581.7,64.0L582.8,70.5L580.8,72.9L579.4,71.8L579.1,73.6L573.1,77.8L570.5,83.8L569.6,90.9L570.7,93.3L572.7,93.3L570.3,95.6L569.9,99.7L573.1,100.0L574.2,103.0L578.1,105.7L581.9,103.9L580.3,100.7L578.6,100.5L581.0,100.7L583.3,107.3L582.7,105.5L579.1,107.0L573.8,111.9L576.3,109.2L576.0,106.7L575.0,106.6L573.4,110.4L571.1,111.9L570.0,109.7L569.6,112.4L570.2,108.8L569.5,109.6L567.8,107.8L568.4,113.9L564.6,115.7"/>
+      <g id="pin">
+        <circle id="pin-ring" cx="0" cy="0" r="9" fill="none"
+                stroke="#f5a623" stroke-width="2"/>
+        <line x1="-11" y1="0" x2="11" y2="0" stroke="#f5a623" stroke-width="2"/>
+        <line x1="0" y1="-11" x2="0" y2="11" stroke="#f5a623" stroke-width="2"/>
+        <circle cx="0" cy="0" r="3" fill="#f5a623"/>
+      </g>
+    </svg>
+  </div>
+  <div class="readout" id="readout" data-empty="true">no position set</div>
+  <p class="map-note">Your monitor will center here</p>
+
+  <header class="mast">
+    <h1>Tell your monitor where you live.</h1>
+    <p class="lead">It's already watching the whole country. This step adds
+      your corner of it &mdash; about a minute, and it stays set.</p>
+    <p>Once it knows, the bottom of the screen shows your own conditions and
+      the distance and direction to the nearest serious alert, and anything
+      dangerous close to you gets escalated above the national noise.</p>
+  </header>
+
+  <section class="step" id="step-ip" data-done="false">
+    <div class="step-mark" aria-hidden="true"></div>
+    <div>
+      <h2>Monitor address</h2>
+      <p class="hint">Your monitor's address on your home network. This page
+        only reaches it from a phone or computer on that same WiFi.</p>
+      <label class="fld" for="ip">Address</label>
+      <input type="text" id="ip" inputmode="decimal" autocomplete="off"
+             autocapitalize="off" spellcheck="false"
+             placeholder="192.168.1.42" aria-describedby="ip-msg">
+      <div class="msg caution" id="ip-msg" hidden></div>
+      <details class="where">
+        <summary>Where do I find it?</summary>
+        <p>If you've just connected the monitor to WiFi, it's on the screen
+          in front of you, in large type.</p>
+        <p>Otherwise tap the gear at the top-left of the monitor's screen and
+          read the number next to <b>Address</b>.</p>
+        <p>On an iPhone, Mac, or recent Windows PC you can usually type
+          <code>hazard.local</code> instead.</p>
+      </details>
+    </div>
+  </section>
+
+  <section class="step" id="step-loc" data-done="false">
+    <div class="step-mark" aria-hidden="true"></div>
+    <div>
+      <h2>Your location</h2>
+      <p class="hint">The center of the map, and the point every distance is
+        measured from. Any one of these three works.</p>
+
+      <button class="btn-locate" id="locate" type="button">Use my exact location</button>
+      <div class="msg" id="loc-msg" hidden></div>
+
+      <div class="or">or by ZIP code</div>
+
+      <div class="zip-row">
+        <input type="text" id="zip" inputmode="numeric" autocomplete="postal-code"
+               spellcheck="false" maxlength="5" placeholder="84101"
+               aria-describedby="zip-msg">
+        <button class="btn-zip" id="zipgo" type="button">Look up</button>
+      </div>
+      <div class="msg" id="zip-msg" hidden></div>
+
+      <div class="or">or type coordinates</div>
+
+      <div class="pair">
+        <div>
+          <label class="fld" for="lat">Latitude</label>
+          <input type="text" id="lat" inputmode="decimal" autocomplete="off"
+                 spellcheck="false" placeholder="40.7608">
+        </div>
+        <div>
+          <label class="fld" for="lon">Longitude</label>
+          <input type="text" id="lon" inputmode="decimal" autocomplete="off"
+                 spellcheck="false" placeholder="-111.8910">
+        </div>
+      </div>
+
+      <div class="msg caution" id="minus-msg" hidden>
+        <div>
+          <b>Check that minus sign.</b> A positive longitude puts your monitor
+          on the other side of the world, where it will never find a US alert.
+          In the United States this number always starts with a minus.<br>
+          <button type="button" class="btn-fix" id="fixlon">Change it</button>
+        </div>
+      </div>
+
+      <details class="where">
+        <summary>How do I look these up?</summary>
+        <ol>
+          <li>Open Google Maps and find your home.</li>
+          <li>Press and hold on it (or right-click on a computer).</li>
+          <li>Two numbers appear. The first is Latitude, the second Longitude.</li>
+          <li>Across the Americas the second one is <b>negative</b>. Keep the
+            minus sign.</li>
+        </ol>
+      </details>
+    </div>
+  </section>
+
+  <section class="step" data-done="true">
+    <div class="step-mark" aria-hidden="true"></div>
+    <div>
+      <h2>What to show</h2>
+      <p class="hint">The monitor only ever banners genuinely serious
+        warnings. This decides whether the quieter stuff appears on the map
+        at all.</p>
+
+      <div class="opt-label">Watches &amp; advisories</div>
+      <div class="opts" id="adv" role="group" aria-label="Watches and advisories">
+        <button type="button" data-adv="0" aria-pressed="true">Hide them</button>
+        <button type="button" data-adv="1" aria-pressed="false">Show on map</button>
+      </div>
+
+      <div class="opt-label">Temperature</div>
+      <div class="opts" id="units" role="group" aria-label="Temperature units">
+        <button type="button" data-units="F" aria-pressed="true">Fahrenheit</button>
+        <button type="button" data-units="C" aria-pressed="false">Celsius</button>
+      </div>
+
+      <div class="opt-label">State borders</div>
+      <div class="opts" id="lines" role="group" aria-label="State borders">
+        <button type="button" data-lines="1" aria-pressed="true">Show</button>
+        <button type="button" data-lines="0" aria-pressed="false">Hide</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="send-zone">
+    <button class="btn-send" id="send" type="button" disabled>Send to my monitor</button>
+    <div class="msg ok" id="send-msg" hidden></div>
+    <p class="fallback" id="fallback" hidden>
+      If that button doesn't open anything, your browser may be blocking the
+      jump to your home network. Paste this into a new tab instead:
+      <span class="url" id="fallback-url"></span>
+    </p>
+  </div>
+
+  <section class="danger" id="net-zone" hidden>
+    <h2>Moving it to a different WiFi network?</h2>
+    <p>This restarts the monitor in setup mode so you can join it to another
+      network the same way you did the first time. Your location and settings
+      are kept.</p>
+    <p><a href="#" id="forget-a">Change WiFi network</a></p>
+  </section>
+
+  <section class="safety">
+    <h2>This is not a warning system</h2>
+    <p>The Hazard Monitor is for situational awareness. It polls public feeds
+      every few minutes and can be late, stale, or offline exactly when
+      weather is worst. Never let it stand in for an official alert: keep
+      NOAA Weather Radio, Wireless Emergency Alerts on your phone, and your
+      local emergency management as the things you actually act on.</p>
+  </section>
+
+  <footer>
+    <p>Your monitor reaches these services directly from your own network.
+      BenchLabs has no account, no cloud service, and receives nothing from
+      your device. This page talks only to your monitor and to the US Census
+      geocoder when you look up a ZIP.</p>
+    <p class="credit">Alerts and forecasts from the
+      <a href="https://www.weather.gov">NOAA / National Weather Service</a>.
+      Earthquakes from the <a href="https://earthquake.usgs.gov">US Geological
+      Survey</a>. Tropical cyclones from the
+      <a href="https://www.nhc.noaa.gov">National Hurricane Center</a>. ZIP
+      lookup and map boundaries from the
+      <a href="https://www.census.gov">US Census Bureau</a>. All US Government
+      works in the public domain.</p>
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var el = function(id){ return document.getElementById(id); };
+  var ipIn = el("ip"), latIn = el("lat"), lonIn = el("lon"), zipIn = el("zip");
+  var readout = el("readout"), sendBtn = el("send");
+  var opts = { adv:"0", units:"F", lines:"1" };
+
+  /* ---------- Map pin ----------
+     The same Albers Equal Area Conic the firmware runs, with the same
+     fitted scale and offset, so a pin here lands on the same pixel the
+     monitor will draw its crosshair on. */
+  var A = {"n":0.6028370046288244,"c":1.351221325417899,"rho0":1.5562263294996075,"lam0":-96,"xmin":-0.3688841452039381,"ymax":0.49877681406746777,"scale":831.0296109195992,"ox":0,"oy":0.26801753748281953};
+  var D2R = Math.PI/180;
+
+  function project(lon, lat){
+    var rho = Math.sqrt(Math.max(0, A.c - 2*A.n*Math.sin(lat*D2R)))/A.n;
+    var th  = A.n*((lon - A.lam0)*D2R);
+    var x = rho*Math.sin(th);
+    var y = A.rho0 - rho*Math.cos(th);
+    return [ (x - A.xmin)*A.scale + A.ox,
+             (A.ymax - y)*A.scale + A.oy ];   /* Albers y is northward */
+  }
+
+  function setPin(cc){
+    var pin = el("pin");
+    if (!cc){ pin.classList.remove("on"); return; }
+    var p = project(cc.lon, cc.lat);
+    pin.setAttribute("transform", "translate("+p[0].toFixed(1)+","+p[1].toFixed(1)+")");
+    pin.classList.add("on");
+  }
+
+  /* ---------- Validation ---------- */
+
+  function validIp(v){
+    v = v.trim();
+    if (!v) return false;
+    if (/^[a-z0-9-]+\.local$/i.test(v)) return true;
+    var p = v.split(".");
+    if (p.length !== 4) return false;
+    return p.every(function(n){ return /^\d{1,3}$/.test(n) && +n >= 0 && +n <= 255; });
+  }
+
+  function num(v){
+    v = (v||"").trim();
+    if (!v || !/^-?\d*\.?\d+$/.test(v)) return null;
+    return parseFloat(v);
+  }
+
+  function coords(){
+    var la = num(latIn.value), lo = num(lonIn.value);
+    if (la === null || lo === null) return null;
+    if (la < -90 || la > 90 || lo < -180 || lo > 180) return null;
+    if (la === 0 && lo === 0) return null;
+    return {lat:la, lon:lo};
+  }
+
+  /* ---------- State ---------- */
+
+  function refresh(){
+    var ipOk = validIp(ipIn.value);
+    var cc = coords();
+
+    el("step-ip").dataset.done  = ipOk ? "true" : "false";
+    el("step-loc").dataset.done = cc ? "true" : "false";
+    ipIn.setAttribute("aria-invalid", (ipIn.value.trim() && !ipOk) ? "true" : "false");
+
+    var ipMsg = el("ip-msg");
+    if (ipIn.value.trim() && !ipOk){
+      ipMsg.innerHTML = "<span>That doesn't look like a network address. Four " +
+        "numbers separated by dots, like <b>192.168.1.42</b>, or a name like " +
+        "<b>hazard.local</b>.</span>";
+      ipMsg.hidden = false;
+    } else ipMsg.hidden = true;
+
+    /* The failure that actually happens: a longitude typed without its
+       minus sign. The monitor then searches the far side of the planet,
+       finds nothing, and looks broken. Catch it before it ships.
+
+       ANY positive longitude is wrong here. This device only ever shows
+       US hazards and US weather, so unlike a general-purpose tool there
+       is no legitimate eastern-hemisphere case to protect. Bounding this
+       at <100 (as a general tool would) would miss the entire western
+       US -- Salt Lake 111.9, Seattle 122.3, Denver 105.0 all exceed it,
+       and those are precisely the places people set up wrong.
+
+       It still warns rather than blocks, and offers a one-tap fix.
+       Only the button's LABEL is rewritten here, never the container's
+       markup: rebuilding innerHTML on each refresh replaced the button
+       mid-click (clicking blurs the field, which re-runs this) and the
+       click landed on a detached node. */
+    var lo = num(lonIn.value);
+    var suspect = (lo !== null && lo > 0);
+    if (suspect) el("fixlon").textContent = "Change it to " + (-lo);
+    el("minus-msg").hidden = !suspect;
+
+    if (cc){
+      readout.textContent = cc.lat.toFixed(4) + ", " + cc.lon.toFixed(4);
+      readout.dataset.empty = "false";
+    } else {
+      readout.textContent = "no position set";
+      readout.dataset.empty = "true";
+    }
+    setPin(cc);
+
+    sendBtn.disabled = !(ipOk && cc);
+
+    /* The WiFi link points at a confirmation page the DEVICE serves, not
+       at anything that erases on sight. A bare URL that wiped WiFi could
+       fire from a bookmark, a refresh, or a link prefetch. */
+    var nz = el("net-zone");
+    if (ipOk){
+      el("forget-a").href = "http://" + ipIn.value.trim() + "/forget-wifi";
+      nz.hidden = false;
+    } else nz.hidden = true;
+
+    if (ipOk){ try { localStorage.setItem("blhm.ip", ipIn.value.trim()); } catch(e){} }
+  }
+
+  ["input","change","blur"].forEach(function(ev){
+    [ipIn, latIn, lonIn].forEach(function(f){ f.addEventListener(ev, refresh); });
+  });
+
+  /* Attached once, reading the field's live value at click time. */
+  el("fixlon").addEventListener("click", function(){
+    var lo = num(lonIn.value);
+    if (lo !== null && lo > 0) lonIn.value = String(-lo);
+    refresh();
+  });
+
+  try {
+    var saved = localStorage.getItem("blhm.ip");
+    if (saved) ipIn.value = saved;
+  } catch(e){}
+
+  /* ---------- Options ---------- */
+
+  [["adv","adv"],["units","units"],["lines","lines"]].forEach(function(pair){
+    var grp = el(pair[0]), key = pair[1];
+    grp.addEventListener("click", function(e){
+      var b = e.target.closest("button[data-" + key + "]");
+      if (!b) return;
+      opts[key] = b.dataset[key];
+      Array.prototype.forEach.call(this.querySelectorAll("button"), function(x){
+        x.setAttribute("aria-pressed", x === b ? "true" : "false");
+      });
+    });
+  });
+
+  /* ---------- ZIP lookup ----------
+     US Census geocoder, public and key-free. JSONP rather than fetch:
+     the geocoder's CORS headers are inconsistent across its endpoints,
+     and a lookup that fails for a browser-policy reason would look to
+     the owner like a bad ZIP. */
+  var jsonpN = 0;
+  el("zipgo").addEventListener("click", function(){
+    var z = (zipIn.value || "").trim();
+    var m = el("zip-msg"), btn = this;
+    if (!/^\d{5}$/.test(z)){
+      m.className = "msg caution";
+      m.innerHTML = "<span>A US ZIP code is five digits.</span>";
+      m.hidden = false;
+      return;
+    }
+    btn.disabled = true; btn.textContent = "...";
+    m.hidden = true;
+
+    var cb = "__blhm_cb_" + (++jsonpN);
+    var done = false;
+    var s = document.createElement("script");
+
+    function finish(ok, html){
+      if (done) return;
+      done = true;
+      btn.disabled = false; btn.textContent = "Look up";
+      m.className = "msg " + (ok ? "ok" : "caution");
+      m.innerHTML = "<span>" + html + "</span>";
+      m.hidden = false;
+      try { delete window[cb]; } catch(e){ window[cb] = undefined; }
+      if (s.parentNode) s.parentNode.removeChild(s);
+    }
+
+    window[cb] = function(data){
+      var r = data && data.result && data.result.addressMatches;
+      if (!r || !r.length){
+        finish(false, "No match for <b>" + z + "</b>. Check the ZIP, or type " +
+                      "coordinates below.");
+        return;
+      }
+      latIn.value = r[0].coordinates.y.toFixed(4);
+      lonIn.value = r[0].coordinates.x.toFixed(4);
+      refresh();
+      finish(true, "Found <b>" + (r[0].matchedAddress || z) + "</b>.");
+    };
+
+    s.onerror = function(){
+      finish(false, "Couldn't reach the lookup service. Type coordinates below " +
+                    "instead.");
+    };
+    setTimeout(function(){
+      finish(false, "The lookup timed out. Type coordinates below instead.");
+    }, 12000);
+
+    s.src = "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress" +
+            "?address=" + encodeURIComponent(z) +
+            "&benchmark=Public_AR_Current&format=jsonp&callback=" + cb;
+    document.body.appendChild(s);
+  });
+
+  zipIn.addEventListener("keydown", function(e){
+    if (e.key === "Enter"){ e.preventDefault(); el("zipgo").click(); }
+  });
+
+  /* ---------- Geolocation ----------
+     The one thing this page can do that the monitor's own pages cannot.
+     Browsers only expose geolocation over HTTPS, and the device serves
+     plain HTTP on the LAN, so a precise fix has to be collected here and
+     handed over. That is the whole reason this page exists. */
+
+  el("locate").addEventListener("click", function(){
+    var btn = this, m = el("loc-msg");
+
+    if (!navigator.geolocation){
+      m.className = "msg caution";
+      m.innerHTML = "<span>This browser can't share a location. Use the ZIP " +
+                    "lookup or type coordinates instead.</span>";
+      m.hidden = false;
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "Getting a fix…";
+    m.hidden = true;
+
+    navigator.geolocation.getCurrentPosition(function(pos){
+      latIn.value = pos.coords.latitude.toFixed(6);
+      lonIn.value = pos.coords.longitude.toFixed(6);
+      btn.disabled = false;
+      btn.textContent = "Use my exact location";
+      m.className = "msg ok";
+      m.innerHTML = "<span>Got it &mdash; accurate to about " +
+                    Math.round(pos.coords.accuracy) + " m.</span>";
+      m.hidden = false;
+      refresh();
+    }, function(err){
+      btn.disabled = false;
+      btn.textContent = "Use my exact location";
+      m.className = "msg caution";
+      m.innerHTML = (err.code === 1)
+        ? "<span>Location sharing is switched off for this page. Turn it on in " +
+          "your browser settings, or use the ZIP lookup below.</span>"
+        : "<span>Couldn't get a fix just now. Use the ZIP lookup below " +
+          "instead.</span>";
+      m.hidden = false;
+    }, {enableHighAccuracy:true, timeout:12000, maximumAge:0});
+  });
+
+  /* ---------- Send ----------
+     A full top-level navigation, not fetch() and not a form POST. Both of
+     those fail crossing from this HTTPS page to the device's plain HTTP
+     address: fetch is blocked outright by mixed-content policy, and a real
+     form POST raises an "insecure form" interstitial. A top-level GET is
+     the one route that works, which is why the monitor accepts its
+     settings on a GET. */
+
+  sendBtn.addEventListener("click", function(){
+    var cc = coords();
+    if (!validIp(ipIn.value) || !cc) return;
+
+    var url = "http://" + ipIn.value.trim() + "/configure" +
+              "?lat=" + encodeURIComponent(cc.lat) +
+              "&lon=" + encodeURIComponent(cc.lon) +
+              "&adv=" + encodeURIComponent(opts.adv) +
+              "&units=" + encodeURIComponent(opts.units) +
+              "&lines=" + encodeURIComponent(opts.lines);
+
+    var sm = el("send-msg");
+    sm.innerHTML = "<span>Sending &mdash; your monitor will confirm on the next " +
+                   "screen, then re-center within a few seconds.</span>";
+    sm.hidden = false;
+
+    el("fallback-url").textContent = url;
+    el("fallback").hidden = false;
+
+    window.location.href = url;
+  });
+
+  refresh();
+})();
+</script>
+</body>
+</html>
